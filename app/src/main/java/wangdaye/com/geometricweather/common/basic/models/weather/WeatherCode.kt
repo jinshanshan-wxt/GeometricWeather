@@ -36,6 +36,9 @@ enum class WeatherCode(val id: String) {
             if (value.lowercase().contains("wind")) {
                 return WIND
             }
+            if (value.lowercase().contains("fog")) {
+                return FOG
+            }
             if (value.lowercase().contains("haze")) {
                 return HAZE
             }

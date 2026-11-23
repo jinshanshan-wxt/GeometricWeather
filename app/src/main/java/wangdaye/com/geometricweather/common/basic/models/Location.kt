@@ -35,6 +35,8 @@ class Location(
     val formattedId: String
         get() = if (isCurrentPosition) {
             CURRENT_POSITION_ID
+        } else if (weatherSource == WeatherSource.OPEN_METEO && cityId.startsWith(MIGRATED_CITY_PREFIX)) {
+            cityId.removePrefix(MIGRATED_CITY_PREFIX)
         } else {
             cityId + "&" + weatherSource.name
         }
@@ -47,6 +49,7 @@ class Location(
 
     companion object {
         private const val NULL_ID = "NULL_ID"
+        private const val MIGRATED_CITY_PREFIX = "migrated:"
 
         const val CURRENT_POSITION_ID = "CURRENT_POSITION"
 
@@ -61,7 +64,7 @@ class Location(
                 province = "",
                 city = "",
                 district = "",
-                weatherSource = WeatherSource.ACCU,
+                weatherSource = WeatherSource.OPEN_METEO,
                 isCurrentPosition = true,
                 isResidentPosition = false,
                 isChina = false
@@ -167,6 +170,15 @@ class Location(
                 return arrayOfNulls(size)
             }
         }
+    }
+
+    fun migrateToOpenMeteo(): Location {
+        if (weatherSource == WeatherSource.OPEN_METEO) return this
+
+        // Old non-current identifiers are used by widgets and shortcuts. Keep them while giving
+        // the Open-Meteo cache a city ID that cannot collide with an ID from another old provider.
+        val newCityId = if (isCurrentPosition) cityId else MIGRATED_CITY_PREFIX + formattedId
+        return copy(cityId = newCityId, weatherSource = WeatherSource.OPEN_METEO)
     }
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {

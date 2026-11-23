@@ -27,10 +27,12 @@ fun ServiceProviderSettingsScreen(
 ) = PreferenceScreen {
 
     listPreferenceItem(R.string.settings_title_weather_source) { id ->
+        val sources = WeatherSource.values()
         ListPreferenceView(
-            titleId = id,
-            valueArrayId = R.array.weather_source_values,
-            nameArrayId = R.array.weather_sources,
+            title = stringResource(id),
+            summary = { _, key -> WeatherSource.getInstance(key).getName(context) },
+            valueArray = sources.map { it.id }.toTypedArray(),
+            nameArray = sources.map { it.getName(context) }.toTypedArray(),
             selectedKey = SettingsManager.getInstance(context).weatherSource.id,
             onValueChanged = { sourceId ->
                 SettingsManager

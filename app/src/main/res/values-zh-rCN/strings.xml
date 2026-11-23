@@ -403,4 +403,11 @@
     <string name="settings_notification_hide_big_view_on">隐藏</string>
     <string name="settings_notification_hide_big_view_off">显示</string>
 
+
+    <string name="open_meteo_clear">晴</string>
+    <string name="open_meteo_partly_cloudy">局部多云</string>
+    <string name="open_meteo_overcast">阴</string>
+    <string name="open_meteo_fog">雾</string>
+    <string name="open_meteo_freezing_rain">冻雨</string>
+    <string name="open_meteo_unknown">天气状况未知</string>
 </resources>

@@ -59,6 +59,15 @@ class SettingsManager private constructor(context: Context) {
 
     private val config = ConfigStore.getInstance(context)
 
+    init {
+        if (!config.getBoolean("open_meteo_default_initialized", false)) {
+            config.edit()
+                .putString("weather_source", WeatherSource.OPEN_METEO.id)
+                .putBoolean("open_meteo_default_initialized", true)
+                .apply()
+        }
+    }
+
     // basic.
 
     var isBackgroundFree: Boolean
@@ -108,7 +117,7 @@ class SettingsManager private constructor(context: Context) {
             notifySettingsChanged()
         }
         get() = WeatherSource.getInstance(
-            config.getString("weather_source", "accu") ?: ""
+            config.getString("weather_source", WeatherSource.OPEN_METEO.id) ?: WeatherSource.OPEN_METEO.id
         )
 
     var locationProvider: LocationProvider

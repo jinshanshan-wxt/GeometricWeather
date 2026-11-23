@@ -9,6 +9,8 @@ import java.util.List;
 
 import wangdaye.com.geometricweather.common.basic.models.ChineseCity;
 import wangdaye.com.geometricweather.common.basic.models.Location;
+import wangdaye.com.geometricweather.common.basic.models.options.provider.WeatherSource;
+import wangdaye.com.geometricweather.settings.ConfigStore;
 import wangdaye.com.geometricweather.common.basic.models.weather.History;
 import wangdaye.com.geometricweather.common.basic.models.weather.Weather;
 import wangdaye.com.geometricweather.db.controllers.AlertEntityController;
@@ -61,6 +63,40 @@ public class DatabaseHelper {
                 new DatabaseOpenHelper(c, DATABASE_NAME, null).getWritableDatabase()
         ).newSession();
         mWritingLock = new Object();
+        migrateSavedLocations(c);
+    }
+
+    private void migrateSavedLocations(Context context) {
+        ConfigStore config = ConfigStore.getInstance(context);
+        String migration = "open_meteo_locations_migrated";
+        if (config.getBoolean(migration, false)) {
+            return;
+        }
+
+        mSession.callInTxNoException(() -> {
+            for (LocationEntity entity : LocationEntityController.selectLocationEntityList(mSession)) {
+                if (entity.weatherSource != WeatherSource.OPEN_METEO) {
+                    Location location = LocationEntityGenerator.generate(entity).migrateToOpenMeteo();
+                    LocationEntityController.updateLocationEntity(mSession, LocationEntityGenerator.generate(location));
+                }
+            }
+            return true;
+        });
+        config.edit().putBoolean(migration, true).apply();
+    }
+
+    public void updateLocationTimeZone(@NonNull Location location) {
+        mSession.callInTxNoException(() -> {
+            LocationEntity saved = LocationEntityController.selectLocationEntity(mSession, location.getFormattedId());
+            if (saved != null && saved.weatherSource == location.getWeatherSource()
+                    && location.getCityId().equals(saved.cityId)
+                    && saved.latitude == location.getLatitude() && saved.longitude == location.getLongitude()
+                    && !location.getTimeZone().equals(saved.timeZone)) {
+                saved.setTimeZone(location.getTimeZone());
+                LocationEntityController.updateLocationEntity(mSession, saved);
+            }
+            return true;
+        });
     }
 
     // location.

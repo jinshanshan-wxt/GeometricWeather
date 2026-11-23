@@ -18,6 +18,11 @@ Clone this project and build it by AndroidStudio.
 You can select a specific build variants in AndroidStudio.
 There are 3 build variants now. Specifically, the `fdroid` variant dose not contain any closed source 3rd-party SDK, such as Baidu Location Service and Bugly. The `gplay` variant integrated the Google Play Service to improve accuracy of location. And finally, the `public` variant contains all closed source 3rd-party SDK which is not exist in `fdroid` version except the Google Play Service.
 
+### Open-Meteo weather source
+Open-Meteo is the default in this fork. On first launch after updating, existing saved locations are switched to Open-Meteo using their stored coordinates. Other weather sources can still be selected in Settings.
+
+Forecast and air-quality data from [Open-Meteo](https://open-meteo.com/) are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and adapted for display in Geometric Weather. Air-quality forecasts use [CAMS ENSEMBLE](https://confluence.ecmwf.int/display/CKB/CAMS+European+air+quality+forecasts). City search uses Open-Meteo geocoding with [GeoNames](https://www.geonames.org/) data.
+
 ### Weather icon extensions
 If you want to build your own weather icon-pack, please read this document:
 * [IconProvider-For-GeometricWeather](https://github.com/WangDaYeeeeee/IconProvider-For-GeometricWeather)

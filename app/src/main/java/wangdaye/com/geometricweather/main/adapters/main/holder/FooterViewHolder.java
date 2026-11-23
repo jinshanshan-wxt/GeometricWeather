@@ -19,6 +19,7 @@ import java.util.List;
 
 import wangdaye.com.geometricweather.R;
 import wangdaye.com.geometricweather.common.basic.models.Location;
+import wangdaye.com.geometricweather.common.basic.models.options.provider.WeatherSource;
 import wangdaye.com.geometricweather.common.utils.helpers.IntentHelper;
 import wangdaye.com.geometricweather.theme.ThemeManager;
 import wangdaye.com.geometricweather.theme.resource.providers.ResourceProvider;
@@ -61,7 +62,13 @@ public class FooterViewHolder extends AbstractMainViewHolder {
                         .getWeatherThemeDelegate()
                         .getHeaderTextColor(mTitle.getContext())
         );
-        mTitle.setText("* Powered by " + location.getWeatherSource().getSourceUrl());
+        if (location.getWeatherSource() == WeatherSource.OPEN_METEO) {
+            boolean hasAirQuality = location.getWeather() != null
+                    && location.getWeather().getCurrent().getAirQuality().isValid();
+            mTitle.setText("Open-Meteo (CC BY 4.0)" + (hasAirQuality ? " · CAMS ENSEMBLE" : ""));
+        } else {
+            mTitle.setText("* Powered by " + location.getWeatherSource().getSourceUrl());
+        }
 
         mEditButton.setTextColor(
                 ThemeManager

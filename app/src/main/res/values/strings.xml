@@ -505,4 +505,11 @@
     <string name="transition_activity_search_bar">activity_search_bar</string>
     <string name="transition_activity_search_txt">activity_search_txt</string>
 
+
+    <string name="open_meteo_clear">Clear</string>
+    <string name="open_meteo_partly_cloudy">Partly cloudy</string>
+    <string name="open_meteo_overcast">Overcast</string>
+    <string name="open_meteo_fog">Fog</string>
+    <string name="open_meteo_freezing_rain">Freezing rain</string>
+    <string name="open_meteo_unknown">Unknown conditions</string>
 </resources>

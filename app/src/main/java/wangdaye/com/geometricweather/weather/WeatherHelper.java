@@ -57,7 +57,11 @@ public class WeatherHelper {
             public void requestWeatherSuccess(@NonNull Location requestLocation) {
                 Weather weather = requestLocation.getWeather();
                 if (weather != null) {
-                    DatabaseHelper.getInstance(c).writeWeather(requestLocation, weather);
+                    DatabaseHelper database = DatabaseHelper.getInstance(c);
+                    if (!requestLocation.getTimeZone().equals(location.getTimeZone())) {
+                        database.updateLocationTimeZone(requestLocation);
+                    }
+                    database.writeWeather(requestLocation, weather);
                     if (weather.getYesterday() == null) {
                         weather.setYesterday(
                                 DatabaseHelper.getInstance(c).readHistory(requestLocation, weather)

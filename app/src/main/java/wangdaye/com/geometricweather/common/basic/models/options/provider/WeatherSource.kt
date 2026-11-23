@@ -15,7 +15,8 @@ enum class WeatherSource(
     ACCU("accu", -0x10a7dd, "accuweather.com"),
     OWM("owm", -0x1491b5, "openweathermap.org"),
     MF("mf", -0xffa76e, "meteofrance.com"),
-    CAIYUN("caiyun", -0xa14472, " caiyunapp.com");
+    CAIYUN("caiyun", -0xa14472, " caiyunapp.com"),
+    OPEN_METEO("open_meteo", 0xff356bb0.toInt(), "open-meteo.com");
 
     companion object {
 
@@ -23,6 +24,9 @@ enum class WeatherSource(
         fun getInstance(
             value: String
         ): WeatherSource {
+            if (value.equals(OPEN_METEO.id, ignoreCase = true)) {
+                return OPEN_METEO
+            }
             if (value.lowercase().contains("owm")) {
                 return OWM
             }
@@ -41,6 +45,6 @@ enum class WeatherSource(
     override val nameArrayId = R.array.weather_sources
     override val voiceArrayId = R.array.weather_source_voices
 
-    override fun getName(context: Context) = Utils.getName(context, this)
-    override fun getVoice(context: Context) = Utils.getVoice(context, this)
+    override fun getName(context: Context) = if (this == OPEN_METEO) "Open-Meteo" else Utils.getName(context, this)
+    override fun getVoice(context: Context) = if (this == OPEN_METEO) getName(context) else Utils.getVoice(context, this)
 }
