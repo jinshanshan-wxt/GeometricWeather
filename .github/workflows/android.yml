@@ -59,7 +59,7 @@ jobs:
             channel: stable
           - api: 37
             platform: 36
-            image: '37.0'
+            image: '37.2'
             target: google_apis_ps16k
             channel: canary
     steps:
@@ -72,6 +72,14 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Update command-line tools for Android 17
+        if: matrix.api == 37
+        run: |
+          tools="$ANDROID_HOME/cmdline-tools"
+          "$tools/latest/bin/sdkmanager" --install "cmdline-tools;22.0"
+          mv "$tools/latest" "$tools/preinstalled"
+          ln -s 22.0 "$tools/latest"
+          "$tools/latest/bin/avdmanager" list device > /dev/null
       - name: Install and launch on Android API ${{ matrix.api }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -81,6 +89,7 @@ jobs:
           channel: ${{ matrix.channel }}
           arch: x86_64
           disable-animations: true
+          ram-size: 4096M
           script: |
             adb install apk/*.apk
             adb logcat -b crash -c
