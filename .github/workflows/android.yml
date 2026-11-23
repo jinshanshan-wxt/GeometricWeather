@@ -14,6 +14,9 @@ on:
   pull_request:
     branches: [ master, dev ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,3 +39,4 @@ jobs:
         with:
           name: geometric-weather-fdroid-debug
           path: app/build/outputs/apk/fdroid/debug/*.apk
+          if-no-files-found: error
