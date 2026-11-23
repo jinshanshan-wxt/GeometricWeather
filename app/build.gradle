@@ -133,11 +133,6 @@ allprojects {
     }
 }
 
-configurations {
-    cleanedAnnotations
-    implementation.exclude group: "org.jetbrains", module: "annotations"
-}
-
 greendao {
     schemaVersion 62
     generateTests false
