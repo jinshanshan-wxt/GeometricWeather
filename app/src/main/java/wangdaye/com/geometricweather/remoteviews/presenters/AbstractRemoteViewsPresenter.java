@@ -3,6 +3,7 @@ package wangdaye.com.geometricweather.remoteviews.presenters;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.PendingIntent;
+import android.app.WallpaperColors;
 import android.app.WallpaperManager;
 import android.content.ContentUris;
 import android.content.Context;
@@ -13,6 +14,7 @@ import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.AlarmClock;
 import android.provider.CalendarContract;
 import android.text.TextUtils;
@@ -174,6 +176,11 @@ public abstract class AbstractRemoteViewsPresenter {
             WallpaperManager manager = WallpaperManager.getInstance(context);
             if (manager == null) {
                 return false;
+            }
+
+            if (Build.VERSION.SDK_INT >= 33) {
+                WallpaperColors colors = manager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM);
+                return colors != null && (colors.getColorHints() & WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0;
             }
 
             if (ActivityCompat.checkSelfPermission(

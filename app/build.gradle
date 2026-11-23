@@ -127,7 +127,10 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        jcenter()
+        maven {
+            url "https://maven.scijava.org/content/repositories/public/"
+            content { includeModule("com.xw.repo", "bubbleseekbar") }
+        }
         maven {
             url "https://jitpack.io"
         }
@@ -136,7 +139,7 @@ allprojects {
 
 configurations {
     cleanedAnnotations
-    compile.exclude group: "org.jetbrains" , module:"annotations"
+    implementation.exclude group: "org.jetbrains", module: "annotations"
 }
 
 greendao {

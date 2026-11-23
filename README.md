@@ -11,6 +11,9 @@
 * By Email: wangdayeeeeee@gmail.com
 * Or GitHub issue
 
+### Supported Android versions
+This fork focuses on Android 15 (API 35) and later. Older Android versions are outside its support scope. The F-Droid flavor uses Android's own location provider without the optional proprietary location SDKs.
+
 ### How to run
 Clone this project and build it by AndroidStudio.
 

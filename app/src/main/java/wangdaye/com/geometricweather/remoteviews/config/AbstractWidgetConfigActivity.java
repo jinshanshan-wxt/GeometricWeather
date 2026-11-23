@@ -2,12 +2,14 @@ package wangdaye.com.geometricweather.remoteviews.config;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.WallpaperColors;
 import android.app.WallpaperManager;
 import android.appwidget.AppWidgetManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
@@ -611,6 +613,15 @@ public abstract class AbstractWidgetConfigActivity extends GeoActivity
 
     @SuppressLint("MissingPermission")
     private void bindWallpaper(boolean checkPermissions) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            WallpaperManager manager = WallpaperManager.getInstance(this);
+            WallpaperColors colors = manager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM);
+            if (colors != null) {
+                mWallpaper.setImageDrawable(new ColorDrawable(colors.getPrimaryColor().toArgb()));
+            }
+            return;
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkPermissions) {
             boolean hasPermission = checkPermissions(0);
             if (!hasPermission) {
@@ -765,7 +776,7 @@ public abstract class AbstractWidgetConfigActivity extends GeoActivity
                 }
 
                 boolean hasPermission = true;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < 33) {
                     hasPermission = checkPermissions(1);
                 }
                 if (hasPermission) {
