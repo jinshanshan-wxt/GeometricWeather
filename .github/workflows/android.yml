@@ -38,3 +38,37 @@ jobs:
           name: geometric-weather-fdroid-debug
           path: app/build/outputs/apk/fdroid/debug/*.apk
           if-no-files-found: error
+
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [35, 36, 37]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: geometric-weather-fdroid-debug
+          path: apk
+      - name: Enable emulator hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and launch on Android API ${{ matrix.api }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb install apk/*.apk
+            adb logcat -b crash -c
+            adb shell am start -W -n wangdaye.com.geometricweather/.main.MainActivity | tee launch.txt
+            grep -q '^Status: ok' launch.txt
+            adb shell pidof wangdaye.com.geometricweather
+            adb logcat -b crash -d | tee crash.txt
+            if grep -q 'Process: wangdaye.com.geometricweather' crash.txt; then exit 1; fi
