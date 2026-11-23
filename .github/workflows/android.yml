@@ -46,7 +46,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [35, 36, 37]
+        include:
+          - api: 35
+            platform: 35
+            image: 35
+            target: google_apis
+            channel: stable
+          - api: 36
+            platform: 36
+            image: 36
+            target: google_apis
+            channel: stable
+          - api: 37
+            platform: 36
+            image: '37.0'
+            target: google_apis_ps16k
+            channel: canary
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -60,8 +75,10 @@ jobs:
       - name: Install and launch on Android API ${{ matrix.api }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: ${{ matrix.api }}
-          target: google_apis
+          api-level: ${{ matrix.platform }}
+          system-image-api-level: ${{ matrix.image }}
+          target: ${{ matrix.target }}
+          channel: ${{ matrix.channel }}
           arch: x86_64
           disable-animations: true
           script: |
