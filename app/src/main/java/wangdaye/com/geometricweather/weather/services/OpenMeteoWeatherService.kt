@@ -86,11 +86,16 @@ class OpenMeteoWeatherService @Inject constructor(
         }
 
         Observable.fromCallable<List<Address>> {
-            if (Geocoder.isPresent()) {
-                Geocoder(context).getFromLocation(
-                    location.latitude.toDouble(), location.longitude.toDouble(), 1
-                ).orEmpty()
-            } else {
+            try {
+                if (Geocoder.isPresent()) {
+                    Geocoder(context).getFromLocation(
+                        location.latitude.toDouble(), location.longitude.toDouble(), 1
+                    ).orEmpty()
+                } else {
+                    emptyList()
+                }
+            } catch (error: Exception) {
+                Log.d("GeoWeatherLocation", "Reverse geocoder returned no address", error)
                 emptyList()
             }
         }
