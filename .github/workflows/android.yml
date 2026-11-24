@@ -103,11 +103,11 @@ jobs:
           script: |
             adb install apk/*.apk
             adb install tests/*.apk
-            adb shell am instrument -w -e class wangdaye.com.geometricweather.remoteviews.TrendWidgetLayoutTest wangdaye.com.geometricweather.test/androidx.test.runner.AndroidJUnitRunner | tee widget-test.txt
-            grep -Fq 'OK (2 tests)' widget-test.txt
             adb logcat -b crash -c
             adb shell am start -W -n wangdaye.com.geometricweather/.main.MainActivity | tee launch.txt
             grep -q '^Status: ok' launch.txt
-            adb shell pidof wangdaye.com.geometricweather
             adb logcat -b crash -d | tee crash.txt
             if grep -q 'Process: wangdaye.com.geometricweather' crash.txt; then exit 1; fi
+            adb shell pidof wangdaye.com.geometricweather
+            adb shell am instrument -w -e class wangdaye.com.geometricweather.remoteviews.TrendWidgetLayoutTest wangdaye.com.geometricweather.test/androidx.test.runner.AndroidJUnitRunner | tee widget-test.txt
+            grep -Fq 'OK (2 tests)' widget-test.txt
