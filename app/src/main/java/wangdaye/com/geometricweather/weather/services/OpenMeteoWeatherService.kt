@@ -3,6 +3,7 @@ package wangdaye.com.geometricweather.weather.services
 import android.content.Context
 import android.location.Address
 import android.location.Geocoder
+import android.location.LocationManager
 import android.util.Log
 import com.google.gson.JsonObject
 import io.reactivex.Observable
@@ -87,7 +88,11 @@ class OpenMeteoWeatherService @Inject constructor(
 
         Observable.fromCallable<List<Address>> {
             try {
-                if (Geocoder.isPresent()) {
+                val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                // The system geocoder can send the coordinates to a separate network service.
+                if (manager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true &&
+                    Geocoder.isPresent()
+                ) {
                     Geocoder(context).getFromLocation(
                         location.latitude.toDouble(), location.longitude.toDouble(), 1
                     ).orEmpty()
