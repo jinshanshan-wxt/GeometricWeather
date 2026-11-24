@@ -32,11 +32,17 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build with Gradle
-        run: ./gradlew :app:assembleFdroidDebug --stacktrace
+        run: ./gradlew :app:assembleFdroidDebug :app:assembleFdroidDebugAndroidTest --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: geometric-weather-fdroid-debug
           path: app/build/outputs/apk/fdroid/debug/*.apk
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trend-widget-instrumentation
+          path: app/build/outputs/apk/androidTest/fdroid/debug/*.apk
           if-no-files-found: error
 
   smoke-test:
@@ -67,6 +73,10 @@ jobs:
         with:
           name: geometric-weather-fdroid-debug
           path: apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: trend-widget-instrumentation
+          path: tests
       - name: Enable emulator hardware acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -92,6 +102,9 @@ jobs:
           ram-size: 4096M
           script: |
             adb install apk/*.apk
+            adb install tests/*.apk
+            adb shell am instrument -w -e class wangdaye.com.geometricweather.remoteviews.TrendWidgetLayoutTest wangdaye.com.geometricweather.test/androidx.test.runner.AndroidJUnitRunner | tee widget-test.txt
+            grep -Fq 'OK (2 tests)' widget-test.txt
             adb logcat -b crash -c
             adb shell am start -W -n wangdaye.com.geometricweather/.main.MainActivity | tee launch.txt
             grep -q '^Status: ok' launch.txt

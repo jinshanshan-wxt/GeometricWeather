@@ -10,6 +10,7 @@ android {
     compileSdkVersion 32
     defaultConfig {
         applicationId "wangdaye.com.geometricweather"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         minSdkVersion 21
         targetSdkVersion 32
         versionCode 30102
@@ -175,6 +176,7 @@ dependencies {
     implementation "androidx.compose.foundation:foundation:1.2.0-beta02"
     implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.5.0-rc01"
     androidTestImplementation "androidx.compose.ui:ui-test-junit4:1.1.1"
+    androidTestImplementation "androidx.test:runner:1.4.0"
     implementation "com.google.accompanist:accompanist-appcompat-theme:0.16.0"
     implementation "androidx.compose.material3:material3:1.0.0-alpha09"
     implementation "androidx.compose.material:material-icons-extended:1.2.0-beta02"
