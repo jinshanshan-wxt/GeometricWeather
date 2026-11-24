@@ -3,141 +3,117 @@ package wangdaye.com.geometricweather.location.services
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
-import android.location.Criteria
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import androidx.annotation.WorkerThread
+import android.os.SystemClock
+import android.util.Log
+import java.util.concurrent.TimeUnit
 
-// static.
-
-private const val TIMEOUT_MILLIS = (10 * 1000).toLong()
-
-private fun isLocationEnabled(
-    manager: LocationManager
-) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-    manager.isLocationEnabled
-} else {
-    manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-            || manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-}
-
-private fun getBestProvider(locationManager: LocationManager): String {
-    var provider = locationManager.getBestProvider(
-        Criteria().apply {
-            isBearingRequired = false
-            isAltitudeRequired = false
-            isSpeedRequired = false
-            accuracy = Criteria.ACCURACY_FINE
-            horizontalAccuracy = Criteria.ACCURACY_HIGH
-            powerRequirement = Criteria.POWER_HIGH
-        },
-        true
-    ) ?: ""
-
-    if (provider.isEmpty()) {
-        provider = locationManager
-            .getProviders(true)
-            .getOrNull(0) ?: provider
-    }
-
-    return provider
-}
+private const val FIX_TIMEOUT_MILLIS = 20_000L
+private val MAX_CACHED_AGE_NANOS = TimeUnit.MINUTES.toNanos(15)
 
 @SuppressLint("MissingPermission")
-private fun getLastKnownLocation(
-    locationManager: LocationManager
-) = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-    ?: locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-    ?: locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+open class AndroidLocationService : LocationService() {
 
-// interface.
+    private val handler = Handler(Looper.getMainLooper())
+    private var activeRequest: FixRequest? = null
 
-@SuppressLint("MissingPermission")
-open class AndroidLocationService : LocationService(), LocationListener {
-
-    private val timer = Handler(Looper.getMainLooper())
-
-    private var locationManager: LocationManager? = null
-
-    private var currentProvider = ""
-    private var locationCallback: LocationCallback? = null
-    private var lastKnownLocation: Location? = null
-    private var gmsLastKnownLocation: Location? = null
-
-    override fun requestLocation(context: Context, callback: LocationCallback) {
-        cancel()
-
-        locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager?
-        if (locationManager == null
-            || !hasPermissions(context)
-            || !isLocationEnabled(locationManager!!)
-            || getBestProvider(locationManager!!).also { currentProvider = it }.isEmpty()) {
+    override fun requestLocation(context: Context, callback: LocationCallback) = onMain {
+        cancelActiveRequest()
+        val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        if (manager == null || !hasPermissions(context)) {
             callback.onCompleted(null)
-            return
+            return@onMain
         }
 
-        locationCallback = callback
-        lastKnownLocation = getLastKnownLocation(locationManager!!)
+        val providers = try {
+            val usable = listOf(
+                LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER
+            )
+            manager.getProviders(true).filter { it in usable }
+        } catch (e: SecurityException) {
+            Log.w("GeoWeatherLocation", "Cannot enumerate location providers", e)
+            emptyList()
+        }
 
-        locationManager!!.requestLocationUpdates(
-            currentProvider,
-            0L,
-            0F,
-            this,
-            Looper.getMainLooper()
-        )
-        timer.postDelayed({
-            cancel()
-            handleLocation(gmsLastKnownLocation ?: lastKnownLocation)
-        }, TIMEOUT_MILLIS)
+        if (providers.isEmpty()) {
+            callback.onCompleted(null)
+            return@onMain
+        }
+
+        val request = FixRequest(manager, callback)
+        activeRequest = request
+        val fallback = providers.mapNotNull { provider ->
+            try {
+                manager.getLastKnownLocation(provider)
+            } catch (_: SecurityException) {
+                null
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }.filter { SystemClock.elapsedRealtimeNanos() - it.elapsedRealtimeNanos in 0..MAX_CACHED_AGE_NANOS }
+            .maxByOrNull { it.elapsedRealtimeNanos }
+
+        val registered = providers.map { provider ->
+            try {
+                manager.requestLocationUpdates(provider, 0L, 0f, request, Looper.getMainLooper())
+                true
+            } catch (e: SecurityException) {
+                Log.d("GeoWeatherLocation", "Location permission unavailable for " + provider, e)
+                false
+            } catch (e: IllegalArgumentException) {
+                Log.d("GeoWeatherLocation", "Location provider unavailable: " + provider, e)
+                false
+            }
+        }.any { it }
+
+        if (registered) {
+            request.timeout = Runnable { request.complete(fallback) }
+            handler.postDelayed(request.timeout!!, FIX_TIMEOUT_MILLIS)
+        } else {
+            request.complete(fallback)
+        }
     }
 
-    override fun cancel() {
-        locationManager?.removeUpdates(this)
-        timer.removeCallbacksAndMessages(null)
-    }
+    override fun cancel() = onMain { cancelActiveRequest() }
 
     override val permissions: Array<String>
-        get() = arrayOf(
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
+        get() = arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
 
-    private fun handleLocation(location: Location?) {
-        locationCallback?.onCompleted(
-            location?.let { buildResult(it) }
-        )
+    private fun onMain(action: () -> Unit) {
+        if (Looper.myLooper() == handler.looper) action() else handler.post { action() }
     }
 
-    @WorkerThread
-    private fun buildResult(location: Location): Result {
-        return Result(
-            location.latitude.toFloat(),
-            location.longitude.toFloat()
-        )
+    private fun cancelActiveRequest() {
+        val request = activeRequest ?: return
+        activeRequest = null
+        request.timeout?.let { handler.removeCallbacks(it) }
+        try {
+            request.manager.removeUpdates(request)
+        } catch (e: SecurityException) {
+            Log.d("GeoWeatherLocation", "Location permission changed before cancellation", e)
+        }
     }
 
-    // location listener.
+    private inner class FixRequest(
+        val manager: LocationManager,
+        private val callback: LocationCallback
+    ) : LocationListener {
+        var timeout: Runnable? = null
 
-    override fun onLocationChanged(location: Location) {
-        cancel()
-        handleLocation(location)
-    }
+        fun complete(location: Location?) {
+            if (activeRequest !== this) return
+            cancelActiveRequest()
+            callback.onCompleted(location?.let { Result(it.latitude.toFloat(), it.longitude.toFloat()) })
+        }
 
-    override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {
-        // do nothing.
-    }
-
-    override fun onProviderEnabled(provider: String) {
-        // do nothing.
-    }
-
-    override fun onProviderDisabled(provider: String) {
-        // do nothing.
+        override fun onLocationChanged(location: Location) = complete(location)
+        override fun onStatusChanged(provider: String, status: Int, extras: Bundle) = Unit
+        override fun onProviderEnabled(provider: String) = Unit
+        override fun onProviderDisabled(provider: String) = Unit
     }
 }

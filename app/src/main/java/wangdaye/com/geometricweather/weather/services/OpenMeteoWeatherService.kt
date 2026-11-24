@@ -1,7 +1,9 @@
 package wangdaye.com.geometricweather.weather.services
 
 import android.content.Context
+import android.location.Address
 import android.location.Geocoder
+import android.util.Log
 import com.google.gson.JsonObject
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -55,13 +57,13 @@ class OpenMeteoWeatherService @Inject constructor(
             null
         } ?: return emptyList()
 
-        return response.getAsJsonArray("results")?.mapNotNull { entry ->
-            val result = entry.asJsonObject
-            val id = result.get("id")?.asLong ?: return@mapNotNull null
-            val latitude = result.get("latitude")?.asFloat ?: return@mapNotNull null
-            val longitude = result.get("longitude")?.asFloat ?: return@mapNotNull null
+        return response.get("results")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { entry ->
+            val result = entry.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val id = result.get("id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong ?: return@mapNotNull null
+            val latitude = result.get("latitude")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asFloat ?: return@mapNotNull null
+            val longitude = result.get("longitude")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asFloat ?: return@mapNotNull null
             if (!validCoordinates(latitude, longitude)) return@mapNotNull null
-            val name = result.get("name")?.asString ?: return@mapNotNull null
+            val name = result.text("name").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val countryCode = result.text("country_code")
             Location(
                 cityId = "geonames:$id", latitude = latitude, longitude = longitude,
@@ -83,31 +85,37 @@ class OpenMeteoWeatherService @Inject constructor(
             return
         }
 
-        Observable.fromCallable {
-            // Weather can be fetched by coordinates even when Android's geocoder is unavailable.
-            val address = try {
-                if (Geocoder.isPresent()) {
-                    Geocoder(context).getFromLocation(
-                        location.latitude.toDouble(), location.longitude.toDouble(), 1
-                    )?.firstOrNull()
-                } else null
-            } catch (_: IOException) {
-                null
+        Observable.fromCallable<List<Address>> {
+            if (Geocoder.isPresent()) {
+                Geocoder(context).getFromLocation(
+                    location.latitude.toDouble(), location.longitude.toDouble(), 1
+                ).orEmpty()
+            } else {
+                emptyList()
             }
-            val unchangedPosition = location.isUsable && location.weatherSource == WeatherSource.OPEN_METEO &&
-                location.cityId == "gps:$query"
-            Location(
-                cityId = "gps:$query", latitude = location.latitude, longitude = location.longitude,
-                timeZone = location.timeZone,
-                country = address?.countryName ?: if (unchangedPosition) location.country else "",
-                province = address?.adminArea ?: if (unchangedPosition) location.province else "",
-                city = address?.locality ?: address?.subAdminArea ?: if (unchangedPosition) location.city else "",
-                district = address?.subLocality ?: if (unchangedPosition) location.district else "",
-                weatherSource = WeatherSource.OPEN_METEO,
-                isCurrentPosition = location.isCurrentPosition, isResidentPosition = location.isResidentPosition,
-                isChina = address?.countryCode?.let { it == "CN" } ?: (unchangedPosition && location.isChina)
-            )
         }
+            .subscribeOn(Schedulers.io())
+            .timeout(3, TimeUnit.SECONDS)
+            .onErrorReturn { error ->
+                Log.d("GeoWeatherLocation", "Reverse geocoding unavailable", error)
+                emptyList()
+            }
+            .map { addresses ->
+                val address = addresses.firstOrNull()
+                val unchangedPosition = location.isUsable && location.weatherSource == WeatherSource.OPEN_METEO &&
+                    location.cityId == "gps:$query"
+                Location(
+                    cityId = "gps:$query", latitude = location.latitude, longitude = location.longitude,
+                    timeZone = location.timeZone,
+                    country = address?.countryName ?: if (unchangedPosition) location.country else "",
+                    province = address?.adminArea ?: if (unchangedPosition) location.province else "",
+                    city = address?.locality ?: address?.subAdminArea ?: if (unchangedPosition) location.city else "",
+                    district = address?.subLocality ?: if (unchangedPosition) location.district else "",
+                    weatherSource = WeatherSource.OPEN_METEO,
+                    isCurrentPosition = location.isCurrentPosition, isResidentPosition = location.isResidentPosition,
+                    isChina = address?.countryCode?.let { it == "CN" } ?: (unchangedPosition && location.isChina)
+                )
+            }
             .compose(SchedulerTransformer.create())
             .subscribe(ObserverContainer(requests, object : BaseObserver<Location>() {
                 override fun onSucceed(result: Location) = callback.requestLocationSuccess(query, listOf(result))
@@ -118,7 +126,7 @@ class OpenMeteoWeatherService @Inject constructor(
     override fun cancel() = requests.clear()
 
     private fun JsonObject.text(key: String): String =
-        get(key)?.takeUnless { it.isJsonNull }?.asString.orEmpty()
+        get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
 
     private fun validCoordinates(latitude: Float, longitude: Float): Boolean =
         latitude in -90f..90f && longitude in -180f..180f
