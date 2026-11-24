@@ -139,6 +139,7 @@ public class LocationHelper {
 
         service.requestLocation(
                 context,
+                background,
                 result -> {
                     if (result == null) {
                         usableCheckListener.requestLocationFailed(location);

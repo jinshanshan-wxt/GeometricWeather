@@ -14,6 +14,7 @@ import android.util.Log
 import java.util.concurrent.TimeUnit
 
 private const val FIX_TIMEOUT_MILLIS = 20_000L
+private const val GNSS_COLD_START_TIMEOUT_MILLIS = 90_000L
 private val MAX_CACHED_AGE_NANOS = TimeUnit.HOURS.toNanos(48)
 
 @SuppressLint("MissingPermission")
@@ -22,7 +23,10 @@ open class AndroidLocationService : LocationService() {
     private val handler = Handler(Looper.getMainLooper())
     private var activeRequest: FixRequest? = null
 
-    override fun requestLocation(context: Context, callback: LocationCallback) = onMain {
+    override fun requestLocation(context: Context, callback: LocationCallback) =
+        requestLocation(context, false, callback)
+
+    override fun requestLocation(context: Context, background: Boolean, callback: LocationCallback) = onMain {
         cancelActiveRequest()
         val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         if (manager == null || !hasPermissions(context)) {
@@ -47,7 +51,7 @@ open class AndroidLocationService : LocationService() {
 
         val request = FixRequest(manager, callback)
         activeRequest = request
-        val registered = providers.map { provider ->
+        val registered = providers.filter { provider ->
             try {
                 manager.requestLocationUpdates(provider, 0L, 0f, request, Looper.getMainLooper())
                 true
@@ -58,14 +62,27 @@ open class AndroidLocationService : LocationService() {
                 Log.d("GeoWeatherLocation", "Location provider unavailable: " + provider, e)
                 false
             }
-        }.any { it }
+        }
 
-        if (registered) {
-            val timeout = Runnable { request.complete(lastKnownLocation(manager, providers)) }
-            request.timeout = timeout
-            handler.postDelayed(timeout, FIX_TIMEOUT_MILLIS)
-        } else {
+        if (registered.isEmpty()) {
             request.complete(lastKnownLocation(manager, providers))
+            return@onMain
+        }
+
+        val waitForColdStart = !background &&
+            LocationManager.GPS_PROVIDER in registered &&
+            LocationManager.NETWORK_PROVIDER !in providers
+
+        request.scheduleTimeout(FIX_TIMEOUT_MILLIS) {
+            val cached = lastKnownLocation(manager, providers)
+            if (cached == null && waitForColdStart) {
+                Log.d("GeoWeatherLocation", "Waiting for a GNSS cold start without network location")
+                request.scheduleTimeout(GNSS_COLD_START_TIMEOUT_MILLIS - FIX_TIMEOUT_MILLIS) {
+                    request.complete(lastKnownLocation(manager, providers))
+                }
+            } else {
+                request.complete(cached)
+            }
         }
     }
 
@@ -116,6 +133,13 @@ open class AndroidLocationService : LocationService() {
         private val callback: LocationCallback
     ) : LocationListener {
         var timeout: Runnable? = null
+            private set
+
+        fun scheduleTimeout(delayMillis: Long, action: () -> Unit) {
+            val task = Runnable { if (activeRequest === this) action() }
+            timeout = task
+            handler.postDelayed(task, delayMillis)
+        }
 
         fun complete(location: Location?) {
             if (activeRequest !== this) return

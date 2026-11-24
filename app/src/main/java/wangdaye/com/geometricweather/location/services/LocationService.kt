@@ -28,6 +28,10 @@ abstract class LocationService {
     }
 
     abstract fun requestLocation(context: Context, callback: LocationCallback)
+    open fun requestLocation(context: Context, background: Boolean, callback: LocationCallback) {
+        requestLocation(context, callback)
+    }
+
     abstract fun cancel()
 
     // permission.
