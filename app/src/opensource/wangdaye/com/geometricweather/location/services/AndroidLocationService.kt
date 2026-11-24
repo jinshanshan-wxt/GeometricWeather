@@ -14,7 +14,7 @@ import android.util.Log
 import java.util.concurrent.TimeUnit
 
 private const val FIX_TIMEOUT_MILLIS = 20_000L
-private val MAX_CACHED_AGE_NANOS = TimeUnit.MINUTES.toNanos(15)
+private val MAX_CACHED_AGE_NANOS = TimeUnit.HOURS.toNanos(48)
 
 @SuppressLint("MissingPermission")
 open class AndroidLocationService : LocationService() {
@@ -47,17 +47,6 @@ open class AndroidLocationService : LocationService() {
 
         val request = FixRequest(manager, callback)
         activeRequest = request
-        val fallback = providers.mapNotNull { provider ->
-            try {
-                manager.getLastKnownLocation(provider)
-            } catch (_: SecurityException) {
-                null
-            } catch (_: IllegalArgumentException) {
-                null
-            }
-        }.filter { SystemClock.elapsedRealtimeNanos() - it.elapsedRealtimeNanos in 0..MAX_CACHED_AGE_NANOS }
-            .maxByOrNull { it.elapsedRealtimeNanos }
-
         val registered = providers.map { provider ->
             try {
                 manager.requestLocationUpdates(provider, 0L, 0f, request, Looper.getMainLooper())
@@ -72,11 +61,34 @@ open class AndroidLocationService : LocationService() {
         }.any { it }
 
         if (registered) {
-            request.timeout = Runnable { request.complete(fallback) }
-            handler.postDelayed(request.timeout!!, FIX_TIMEOUT_MILLIS)
+            val timeout = Runnable { request.complete(lastKnownLocation(manager, providers)) }
+            request.timeout = timeout
+            handler.postDelayed(timeout, FIX_TIMEOUT_MILLIS)
         } else {
-            request.complete(fallback)
+            request.complete(lastKnownLocation(manager, providers))
         }
+    }
+
+    private fun lastKnownLocation(manager: LocationManager, providers: List<String>): Location? {
+        val now = SystemClock.elapsedRealtimeNanos()
+        val latest = (providers + LocationManager.PASSIVE_PROVIDER).mapNotNull { provider ->
+            try {
+                manager.getLastKnownLocation(provider)
+            } catch (_: SecurityException) {
+                null
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }.filter { now - it.elapsedRealtimeNanos in 0..MAX_CACHED_AGE_NANOS }
+            .maxByOrNull { it.elapsedRealtimeNanos }
+
+        if (latest == null) {
+            Log.d("GeoWeatherLocation", "No fresh fix or usable cached position")
+        } else {
+            val ageMinutes = TimeUnit.NANOSECONDS.toMinutes(now - latest.elapsedRealtimeNanos)
+            Log.d("GeoWeatherLocation", "Using cached position from " + latest.provider + ", age=" + ageMinutes + " min")
+        }
+        return latest
     }
 
     override fun cancel() = onMain { cancelActiveRequest() }

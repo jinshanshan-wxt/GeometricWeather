@@ -44,11 +44,16 @@ class Location(
     val isDaylight: Boolean
         get() = weather?.isDaylight(timeZone) ?: DisplayUtils.isDaylight(timeZone)
 
+    val isDefaultCurrentPosition: Boolean
+        get() = isCurrentPosition && cityId == DEFAULT_LOCATION_ID &&
+            latitude == 39.904000f && longitude == 116.391000f
+
     val isUsable: Boolean
         get() = cityId != NULL_ID
 
     companion object {
         private const val NULL_ID = "NULL_ID"
+        private const val DEFAULT_LOCATION_ID = "101924"
         private const val MIGRATED_CITY_PREFIX = "migrated:"
 
         const val CURRENT_POSITION_ID = "CURRENT_POSITION"
@@ -74,7 +79,7 @@ class Location(
         @JvmStatic
         fun buildDefaultLocation(weatherSource: WeatherSource): Location {
             return Location(
-                cityId = "101924",
+                cityId = DEFAULT_LOCATION_ID,
                 latitude = 39.904000f,
                 longitude = 116.391000f,
                 timeZone = TimeZone.getTimeZone("Asia/Shanghai"),

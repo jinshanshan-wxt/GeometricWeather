@@ -82,6 +82,17 @@ public class LocationHelper {
 
             @Override
             public void requestLocationFailed(Location requestLocation) {
+                if (SettingsManager.getInstance(context).getWeatherSource() == WeatherSource.OPEN_METEO) {
+                    if (requestLocation.isDefaultCurrentPosition()) {
+                        Location unavailable = Location.buildLocal();
+                        DatabaseHelper.getInstance(context).writeLocation(unavailable);
+                        l.requestLocationFailed(unavailable);
+                    } else {
+                        l.requestLocationFailed(requestLocation);
+                    }
+                    return;
+                }
+
                 if (requestLocation.isUsable()) {
                     l.requestLocationFailed(requestLocation);
                 } else {
